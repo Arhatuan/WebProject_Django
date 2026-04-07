@@ -1,0 +1,21 @@
+*.py[cod]
+*.sqlite3
+
+# Virtual environment
+venv/
+.env/
+
+# Django
+*.log
+db.sqlite3
+media/
+
+# Environment variables
+.env
+
+# VSCode / IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
