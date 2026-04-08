@@ -133,6 +133,8 @@ class RegistrationViewSet(ModelViewSet):
             serializer.save(user_id=self.request.user)
         except IntegrityError:
             raise serializers.ValidationError("Already registered.")
+        except ValueError:
+            raise serializers.ValidationError("Must be authenticated.")
         
     # Show a message when destroying (by default, there is no message)
     def destroy(self, request, *args, **kwargs):
