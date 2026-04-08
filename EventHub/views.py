@@ -161,6 +161,7 @@ def dashboard(request):
     upcoming_events = Event.objects.filter(status="upcoming").count()
     completed_events = Event.objects.filter(status="completed").count()
     cancelled_events = Event.objects.filter(status="cancelled").count()
+    ongoing_events = Event.objects.filter(status="ongoing").count()
 
     data = {
         "nb_events": nb_events,
@@ -169,6 +170,7 @@ def dashboard(request):
         "upcoming_events": upcoming_events,
         "completed_events": completed_events,
         "cancelled_events": cancelled_events,
+        "ongoing_events": ongoing_events
     }
 
     return Response(data, status=status.HTTP_200_OK)
