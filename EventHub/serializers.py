@@ -39,13 +39,13 @@ class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = ["id", "title", "description",
-                  "date", "status", "location",
+                  "start_date", "end_date", "price", "status", "location",
                   "max_participants",
                   "registered_count", "available_slots"]
         read_only_fields = ["registered_count", "available_slots"]
     
 
-# event serializer with the participants to that event
+# Event serializer with the participants to that event
 class EventWithParticipantsSerializer(EventSerializer):
     participants = MinimumParticipantSerializer(many=True, read_only=True)
 

@@ -3,12 +3,13 @@ from rest_framework import status, serializers
 from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action, api_view
+from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.authtoken.models import Token
 from django.db import IntegrityError
 from django.db.models import Count, F
 from django_filters.rest_framework import DjangoFilterBackend
-from datetime import datetime, time
 from django.utils.dateparse import parse_date
-from django.utils.timezone import make_aware
+
 
 from .models import Event, Participant, Registration
 from .serializers import EventSerializer, ParticipantSerializer, RegistrationSerializer, EventWithParticipantsSerializer
@@ -17,12 +18,12 @@ from .permissions import IsAdminOrReadOnly, IsOwnerOrAdminOrCreateOnly, IsOwnerO
 # Create your views here.
 class EventViewSet(ModelViewSet):
     serializer_class = EventSerializer
-    http_method_names = ['get', 'post', 'put', 'delete'] # removes 'PATCH'
     permission_classes = [IsAdminOrReadOnly]
     authentication_classes = [TokenAuthentication]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["status"] # filtering by ?status=...
+    filterset_fields = ["status", "price"] # filtering by ?status=...
             # We don't filter by date here, but we do it manually, to not have to compare by time
+    ordering = ["created_at"]
 
     # Return queryset with automatically computed 'registered_count' and 'available_slots' (only on read operations)
     def get_queryset(self):
@@ -30,8 +31,14 @@ class EventViewSet(ModelViewSet):
 
         # Filter on date (and not hours)
         date = self.request.query_params.get("date")
+        
         if date:
-            queryset = queryset.filter(date__date=date)
+            parsed_date = parse_date(date)
+            if parse_date:
+                queryset = queryset.filter(
+                    start_date__date__lte=parsed_date,
+                    end_date__date__gte=parsed_date
+                )
         
         if self.action in ["list", "retrieve"]:
             queryset = queryset.annotate(
@@ -48,11 +55,6 @@ class EventViewSet(ModelViewSet):
         if self.action == "retrieve":
             return EventWithParticipantsSerializer
         return EventSerializer
-    
-    def list(self, request, *args, **kwargs):
-        test = super().list(request, *args, **kwargs)
-        print("test", test.data)
-        return test
 
     # Show a message when destroying (by default, there is no message)
     def destroy(self, request, *args, **kwargs):
@@ -61,12 +63,27 @@ class EventViewSet(ModelViewSet):
         return Response({"message": f"The event '{event.title}' was deleted."},
                         status=status.HTTP_200_OK)
 
+    # Catch contraint exception when 'end_date' preceeds 'start_date' (either when creating or updating an event)
+    def perform_create(self, serializer):
+        try:
+            creation = super().perform_create(serializer)
+        except IntegrityError:
+            raise serializers.ValidationError("End date cannot preceed start date.")
+        return creation
+    
+    def perform_update(self, serializer):
+        try:
+            modification = super().perform_update(serializer)
+        except IntegrityError:
+            raise serializers.ValidationError("End date cannot preceed start date.")
+        return modification
 
 
 class ParticipantViewSet(ModelViewSet):
     serializer_class = ParticipantSerializer
     permission_classes = [IsOwnerOrAdminOrCreateOnly]
     authentication_classes = [TokenAuthentication]
+    ordering = ["created_at"]
 
     # A participant can only see its own informations
     # Admins can see everyone's informations
@@ -97,7 +114,7 @@ class ParticipantViewSet(ModelViewSet):
 
 class RegistrationViewSet(ModelViewSet):
     serializer_class = RegistrationSerializer
-    http_method_names = ['get', 'post', 'delete'] # removes 'POST' and 'PATCH'
+    http_method_names = ['get', 'post', 'delete'] # removes 'PUT' and 'PATCH'
     permission_classes = [IsOwnerOrAdminOrCreateOnlyForRegistration]
     authentication_classes = [TokenAuthentication]
 
@@ -129,9 +146,12 @@ class RegistrationViewSet(ModelViewSet):
 
 
 
-
+# For the dashboard informations
 @api_view(["GET"])
 def dashboard(request):
+    if not request.user.is_staff:
+        return Response("Not allowed.", status=status.HTTP_401_UNAUTHORIZED)
+    
     nb_events = Event.objects.count()
     nb_participants = Participant.objects.count()
     nb_registrations = Registration.objects.count()
@@ -150,3 +170,24 @@ def dashboard(request):
     }
 
     return Response(data, status=status.HTTP_200_OK)
+
+
+class CustomAuthToken(ObtainAuthToken):
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data,
+                                           context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+
+        token, created = Token.objects.get_or_create(user=user)
+
+        return Response({
+            'token': token.key,
+            'user_id': user.id,
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            'phone': str(user.phone) if user.phone else "",
+            'is_staff': user.is_staff
+        })

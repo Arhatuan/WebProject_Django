@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db.models import Q, F
+from django.core.exceptions import ValidationError
 from phonenumber_field.modelfields import PhoneNumberField
 
 # Create your models here.
@@ -28,7 +30,9 @@ class Event(models.Model):
     # 'id' created automatically
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True) # optional
-    date = models.DateTimeField()
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    price = models.DecimalField(default=0, max_digits=8, decimal_places=2, blank=True)
 
     STATUSES = {
         "upcoming": "upcoming",
@@ -39,7 +43,6 @@ class Event(models.Model):
     status = models.CharField(max_length=9, choices=STATUSES)
     location = models.CharField(max_length=200, blank=True) # optional
     max_participants = models.IntegerField(default=2)
-    #participants_count = models.IntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -54,6 +57,13 @@ class Event(models.Model):
     def __str__(self):
         return self.title
     
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(end_date__gte=F('start_date')),
+                name="end_date_after_start_date"
+            )
+        ]
 
     
 class Registration(models.Model):
