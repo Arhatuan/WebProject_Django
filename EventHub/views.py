@@ -176,6 +176,7 @@ def dashboard(request):
     return Response(data, status=status.HTTP_200_OK)
 
 
+# Redefine the login API point (to get additional data, and not just the authentification token)
 class CustomAuthToken(ObtainAuthToken):
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data,
@@ -193,5 +194,6 @@ class CustomAuthToken(ObtainAuthToken):
             'last_name': user.last_name,
             'email': user.email,
             'phone': str(user.phone) if user.phone else "",
-            'is_staff': user.is_staff
+            'is_staff': user.is_staff,
+            'nb_events_registered': user.events.count(),
         })
