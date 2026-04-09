@@ -35,7 +35,7 @@ class MinimumParticipantSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     registered_count = serializers.IntegerField(read_only=True)
     available_slots = serializers.IntegerField(read_only=True)
-    price = serializers.DecimalField(max_digits=8, decimal_places=2, coerce_to_string=True)
+    price = serializers.DecimalField(max_digits=8, decimal_places=2, coerce_to_string=False)
     
     class Meta:
         model = Event
