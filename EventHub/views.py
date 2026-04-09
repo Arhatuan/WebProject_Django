@@ -9,6 +9,7 @@ from django.db import IntegrityError
 from django.db.models import Count, F
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils.dateparse import parse_date
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 
 from .models import Event, Participant, Registration
@@ -112,6 +113,7 @@ class ParticipantViewSet(ModelViewSet):
 
 
 
+
 class RegistrationViewSet(ModelViewSet):
     serializer_class = RegistrationSerializer
     http_method_names = ['get', 'post', 'delete'] # removes 'PUT' and 'PATCH'
@@ -144,6 +146,44 @@ class RegistrationViewSet(ModelViewSet):
         return Response(
             {"message": f"Registration by user '{registration.user_id}' for the event '{registration.event_id}' has been deleted."},
             status=status.HTTP_200_OK
+        )
+    
+
+    # New route for deleting registrarion according to 'event_id' given in URL query
+    @extend_schema(
+            parameters=[
+                OpenApiParameter(
+                    name='event_id', type=int, location=OpenApiParameter.QUERY, 
+                    required=True, description="ID of the event to unregister from"
+                ),
+            ]
+    )
+    @action(detail=False, methods=['delete'], url_path='by-event')
+    def delete_by_event(self, request):
+        user = request.user
+        event_id = request.data.get("event_id") or request.query_params.get('event_id')
+
+        print(user.id)
+        if not event_id:
+            return Response(
+                {"detail": "event_id is required (in URL query parameter)"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            registration = Registration.objects.get(
+                event_id=event_id,
+                user_id=user.id
+            )
+        except Registration.DoesNotExist:
+            return Response(
+                {"detail": "Registration not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        registration.delete()
+        return Response( 
+            status=status.HTTP_204_NO_CONTENT
         )
 
 
